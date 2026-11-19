@@ -13,9 +13,9 @@
   .card { background: var(--card); border-radius: 12px; padding: 18px; margin-bottom: 14px; }
   h1 { font-size: 20px; margin: 0 0 14px; word-break: break-all; }
   h2 { font-size: 16px; margin: 0 0 12px; color: var(--sub); font-weight: normal; }
-  input[type=text] { width: 100%; padding: 11px 12px; font-size: 16px; border: 1px solid #ddd;
+  input[type=text], input[type=email] { width: 100%; padding: 11px 12px; font-size: 16px; border: 1px solid #ddd;
          border-radius: 8px; outline: none; margin-bottom: 10px; }
-  input[type=text]:focus { border-color: var(--c); }
+  input[type=text]:focus, input[type=email]:focus { border-color: var(--c); }
   .row { display: flex; gap: 8px; align-items: center; }
   .row input { margin-bottom: 0; }
   .opt-row { margin-bottom: 10px; }
@@ -92,6 +92,10 @@ function renderCreate() {
           <option value="0">不限时</option>
         </select>
       </label>
+      <div id="emailbox">
+        <input type="email" id="email" placeholder="截止后把结果发到这个邮箱（选填）" maxlength="100">
+        <p class="tip" style="text-align:left;margin:-4px 0 12px">邮箱不会公开显示；截止后约 10–30 分钟内送达</p>
+      </div>
       <button class="primary" id="create">创建投票</button>
       <div class="msg" id="msg"></div>
     </div>
@@ -106,6 +110,8 @@ function renderCreate() {
   };
   addOpt(); addOpt();
   document.getElementById('add').onclick = () => addOpt();
+  const dur = document.getElementById('dur'), emailbox = document.getElementById('emailbox');
+  dur.onchange = () => emailbox.classList.toggle('hidden', dur.value === '0');
   document.getElementById('create').onclick = async (ev) => {
     const msg = document.getElementById('msg');
     const title = document.getElementById('title').value.trim();
@@ -113,13 +119,22 @@ function renderCreate() {
     if (!title) return msg.textContent = '请填写标题';
     if (options.length < 2) return msg.textContent = '至少需要两个选项';
     if (new Set(options).size !== options.length) return msg.textContent = '选项不能重复';
+    const hours = +dur.value;
+    const email = hours ? document.getElementById('email').value.trim() : '';
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg.textContent = '邮箱格式不对';
     ev.target.disabled = true; msg.textContent = '';
-    const hours = +document.getElementById('dur').value;
     const poll = { id: newId(), title, options, multi: document.getElementById('multi').checked };
     if (hours) poll.ends_at = new Date(Date.now() + hours * 3600e3).toISOString();
     try {
       await api('polls', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(poll) });
-      renderCreated(poll);
+      let emailFailed = false;
+      if (email) {
+        try {
+          await api('poll_notify', { method: 'POST', headers: { Prefer: 'return=minimal' },
+            body: JSON.stringify({ poll_id: poll.id, email }) });
+        } catch (e) { emailFailed = true; }
+      }
+      renderCreated(poll, email && !emailFailed ? email : '', emailFailed);
     } catch (e) {
       msg.textContent = '创建失败：' + e.message; ev.target.disabled = false;
     }
@@ -174,10 +189,12 @@ function bindShare(poll) {
   document.getElementById('copylink').onclick = () => copyText(pollUrl(poll.id), m, box);
 }
 
-function renderCreated(poll) {
+function renderCreated(poll, email, emailFailed) {
   app.innerHTML = `
     <div class="card">
       <h1>✅ 投票已创建</h1>
+      ${email ? `<p class="tip" style="text-align:left">📧 截止后结果会发到 ${esc(email)}</p>` : ''}
+      ${emailFailed ? `<p class="msg">⚠️ 邮件提醒设置失败，投票本身正常</p>` : ''}
       <h2>复制下面的文案发到群里，大家不点开也能看到选项</h2>
       ${shareBlock(poll)}
       <button class="ghost" onclick="location.href='?id=${poll.id}'">打开投票页 →</button>

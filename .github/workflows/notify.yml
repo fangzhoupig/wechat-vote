@@ -1,0 +1,25 @@
+name: 截止邮件提醒
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # 每 10 分钟检查一次（GitHub 可能会延迟几分钟到十几分钟）
+  workflow_dispatch:          # 也可以在 Actions 页面手动运行
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/notify.py
+        env:
+          SUPABASE_URL: https://dipgtjglktszwtnnfkoz.supabase.co
+          SITE_URL: https://fangzhoupig.github.io/wechat-vote/
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
