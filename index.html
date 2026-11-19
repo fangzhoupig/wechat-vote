@@ -106,33 +106,60 @@ function renderCreate() {
     try {
       await api('polls', { method: 'POST', headers: { Prefer: 'return=minimal' },
         body: JSON.stringify({ id, title, options, multi: document.getElementById('multi').checked }) });
-      renderCreated(id, title);
+      renderCreated({ id, title, options, multi: document.getElementById('multi').checked });
     } catch (e) {
       msg.textContent = '创建失败：' + e.message; ev.target.disabled = false;
     }
   };
 }
 
-function renderCreated(id, title) {
-  const url = location.origin + location.pathname + '?id=' + id;
+const pollUrl = id => location.origin + location.pathname + '?id=' + id;
+const nums = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+function shareText(poll) {
+  return `📊 ${poll.title}（${poll.multi ? '可多选' : '单选'}）\n`
+    + poll.options.map((o, i) => `${nums[i] || i + 1}. ${o}`).join('\n')
+    + `\n👉 点链接投票：${pollUrl(poll.id)}`;
+}
+// 复制到剪贴板；微信里失败时退回到"选中文字让用户长按复制"
+async function copyText(text, msgEl, boxEl) {
+  try {
+    await navigator.clipboard.writeText(text);
+    msgEl.textContent = '已复制，去群里粘贴吧';
+  } catch (e) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+      const ok = document.execCommand('copy'); ta.remove();
+      if (ok) { msgEl.textContent = '已复制，去群里粘贴吧'; return; }
+    } catch (e2) {}
+    const r = document.createRange(); r.selectNodeContents(boxEl);
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    msgEl.textContent = '已选中，请长按复制';
+  }
+}
+function shareBlock(poll) {
+  return `
+    <div class="link" id="sharebox" style="white-space:pre-wrap">${esc(shareText(poll))}</div>
+    <button class="primary" id="copytext">复制投票文案</button>
+    <button class="ghost" id="copylink" style="width:100%">只复制链接</button>
+    <div class="msg" id="copymsg" style="color:var(--c);text-align:center"></div>`;
+}
+function bindShare(poll) {
+  const m = document.getElementById('copymsg'), box = document.getElementById('sharebox');
+  document.getElementById('copytext').onclick = () => copyText(shareText(poll), m, box);
+  document.getElementById('copylink').onclick = () => copyText(pollUrl(poll.id), m, box);
+}
+
+function renderCreated(poll) {
   app.innerHTML = `
     <div class="card">
       <h1>✅ 投票已创建</h1>
-      <p>${esc(title)}</p>
-      <div class="link" id="url">${esc(url)}</div>
-      <button class="primary" id="copy">复制链接</button>
-      <div class="msg" id="msg" style="color:var(--c)"></div>
-      <button class="ghost" onclick="location.href='?id=${id}'">打开投票页 →</button>
+      <h2>复制下面的文案发到群里，大家不点开也能看到选项</h2>
+      ${shareBlock(poll)}
+      <button class="ghost" onclick="location.href='?id=${poll.id}'">打开投票页 →</button>
     </div>`;
-  document.getElementById('copy').onclick = async () => {
-    const m = document.getElementById('msg');
-    try { await navigator.clipboard.writeText(url); m.textContent = '已复制，去群里粘贴吧'; }
-    catch (e) {
-      const r = document.createRange(); r.selectNodeContents(document.getElementById('url'));
-      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
-      m.textContent = '已选中，请长按复制';
-    }
-  };
+  bindShare(poll);
 }
 
 // ---------- 投票页 ----------
@@ -178,8 +205,13 @@ async function renderPoll(id) {
         </div>`).join('')}
       <button class="ghost" id="refresh">↻ 刷新结果</button>
     </div>
+    <div class="card">
+      <h2>转发这个投票</h2>
+      ${shareBlock(poll)}
+    </div>
     <p class="tip"><a href="./">我也要发起投票</a></p>`;
 
+  bindShare(poll);
   document.getElementById('refresh').onclick = () => renderPoll(id);
   if (!showForm) return;
   document.getElementById('submit').onclick = async (ev) => {
