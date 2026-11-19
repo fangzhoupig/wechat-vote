@@ -44,12 +44,14 @@
 
 <script>
 // ====== 配置：换成你自己的 Supabase 项目信息 ======
-const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
-const SUPABASE_KEY = 'YOUR-ANON-KEY';
+const SUPABASE_URL = 'https://dipgtjglktszwtnnfkoz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_Q1lToLzRoAqqEeCed3dy9w_yL7g4dow';
 // ================================================
 
 const app = document.getElementById('app');
-const H = { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' };
+// 新版 publishable key (sb_publishable_...) 只放 apikey 头；旧版 anon key (JWT) 两个头都放
+const H = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
+if (!SUPABASE_KEY.startsWith('sb_')) H.Authorization = 'Bearer ' + SUPABASE_KEY;
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = {
@@ -200,7 +202,7 @@ async function renderPoll(id) {
 }
 
 const id = new URLSearchParams(location.search).get('id');
-if (SUPABASE_URL.includes('YOUR-PROJECT')) {
+if (SUPABASE_KEY.includes('YOUR-')) {
   app.innerHTML = '<div class="card tip">还没配置 Supabase，请编辑 index.html 顶部的 SUPABASE_URL 和 SUPABASE_KEY</div>';
 } else if (id) renderPoll(id); else renderCreate();
 </script>
