@@ -25,3 +25,7 @@ create policy "read polls"   on polls for select to anon using (true);
 create policy "create polls" on polls for insert to anon with check (true);
 create policy "read votes"   on votes for select to anon using (true);
 create policy "cast vote"    on votes for insert to anon with check (true);
+
+-- 新版 Supabase 可能不会自动授权给匿名用户，这里显式授权
+grant select, insert on polls, votes to anon;
+grant usage on sequence votes_id_seq to anon;
