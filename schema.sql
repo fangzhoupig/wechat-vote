@@ -5,6 +5,7 @@ create table polls (
   title text not null check (char_length(title) <= 100),
   options jsonb not null,
   multi boolean not null default false,
+  ends_at timestamptz,                -- 截止时间，空 = 不限时
   created_at timestamptz not null default now()
 );
 
@@ -24,7 +25,9 @@ alter table votes enable row level security;
 create policy "read polls"   on polls for select to anon using (true);
 create policy "create polls" on polls for insert to anon with check (true);
 create policy "read votes"   on votes for select to anon using (true);
-create policy "cast vote"    on votes for insert to anon with check (true);
+create policy "cast vote"    on votes for insert to anon with check (   -- 截止后不能再投
+  exists (select 1 from polls p where p.id = poll_id and (p.ends_at is null or p.ends_at > now()))
+);
 
 -- 新版 Supabase 可能不会自动授权给匿名用户，这里显式授权
 grant select, insert on polls, votes to anon;
