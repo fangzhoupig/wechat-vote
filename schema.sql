@@ -51,3 +51,6 @@ create policy "add notify" on poll_notify for insert to anon with check (
   )
 );
 grant insert on poll_notify to anon;
+
+-- 后台定时任务（GitHub Actions）用管理员 key 读写
+grant select, insert, update on polls, votes, poll_notify to service_role;

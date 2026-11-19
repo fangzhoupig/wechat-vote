@@ -5,14 +5,14 @@
   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS  发件邮箱的 SMTP 设置
   SITE_URL                                投票网页地址
 """
-import json, os, smtplib, sys, urllib.parse, urllib.request
+import json, os, smtplib, sys, urllib.error, urllib.parse, urllib.request
 from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
 from email.header import Header
 from email.utils import formataddr
 
 URL = os.environ["SUPABASE_URL"].rstrip("/") + "/rest/v1/"
-KEY = os.environ["SUPABASE_SECRET_KEY"]
+KEY = os.environ["SUPABASE_SECRET_KEY"].strip()
 SITE = os.environ.get("SITE_URL", "").rstrip("/") + "/"
 CST = timezone(timedelta(hours=8))
 
@@ -24,9 +24,12 @@ if not KEY.startswith("sb_"):  # 旧版 service_role JWT
 def api(path, method="GET", body=None):
     req = urllib.request.Request(URL + path, method=method, headers=H,
                                  data=json.dumps(body).encode() if body is not None else None)
-    with urllib.request.urlopen(req, timeout=30) as r:
-        txt = r.read().decode()
-        return json.loads(txt) if txt else None
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            txt = r.read().decode()
+            return json.loads(txt) if txt else None
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"数据库请求失败 {e.code} {method} {path}：{e.read().decode()[:500]}") from None
 
 
 def q(v):
@@ -71,6 +74,11 @@ def send(to, subject, body):
 
 
 def main():
+    if not KEY:
+        sys.exit("SUPABASE_SECRET_KEY 没有设置")
+    if KEY.startswith("sb_publishable_"):
+        sys.exit("SUPABASE_SECRET_KEY 填成了 publishable key，应该填 sb_secret_ 开头的 Secret key")
+    print(f"使用的 key 类型：{KEY[:10]}…（长度 {len(KEY)}）")
     now = datetime.now(timezone.utc)
     pending = api("poll_notify?sent_at=is.null&select=poll_id,email")
     print(f"待处理 {len(pending)} 条")
